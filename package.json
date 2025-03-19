@@ -27,5 +27,9 @@
     },
     "scripts": {
         "test": "node --experimental-vm-modules node_modules/.bin/jest"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/altalang/prettier-plugin-elm-tailwind.git"
     }
 }
