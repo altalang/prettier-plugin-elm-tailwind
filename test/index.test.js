@@ -1,90 +1,142 @@
 const prettier = require("prettier");
 const path = require("path");
-const plugin = require('../index.js');
+const plugin = require("../index.js");
+const fs = require("fs");
 
-// Function to make sure the sorter is initialized
-function waitForSorter(maxAttempts = 30, interval = 100) {
-  return new Promise((resolve, reject) => {
-    let attempts = 0;
+// Create a temporary Tailwind config file for testing
+const tailwindConfigPath = path.join(__dirname, "tailwind.config.js");
+fs.writeFileSync(
+  tailwindConfigPath,
+  `module.exports = {
+  content: [],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}`
+);
 
-    const check = () => {
-      if (plugin.tailwindSorterInitialized) {
-        return resolve();
-      }
+const options = {
+  parser: "elm",
+  plugins: [path.resolve(__dirname, ".."), plugin],
+  printWidth: 80,
+  tailwindConfig: tailwindConfigPath,
+};
 
-      attempts++;
-      if (attempts >= maxAttempts) {
-        return reject(new Error("Timed out waiting for Tailwind sorter to initialize"));
-      }
-
-      setTimeout(check, interval);
-    };
-
-    check();
-  });
-}
-
-// Wait for the plugin to initialize before running tests
-beforeAll(async () => {
-  try {
-    await waitForSorter();
-  } catch (error) {
-    console.warn("Warning: Tailwind sorter may not be initialized:", error.message);
-  }
-});
-
-describe("prettier-plugin-elm-tailwind", () => {
-  const options = {
-    parser: "elm",
-    plugins: [path.resolve(__dirname, ".."), plugin],
-    printWidth: 80,
-  };
-
-  test("it sorts simple Elm class attributes", async () => {
+describe("prettier-plugin-elm-tailwind (matching official plugin behavior)", () => {
+  test("sorts simple Elm class attributes", async () => {
     const elmCode = `
 module Main exposing (..)
 
 view : Html msg
 view =
-    div [ class "text-lg flex p-4 bg-blue-500" ] [ text "Hello World" ]
+    div [ class "p-4 bg-blue-500 text-lg flex" ] [ text "Hello World" ]
 `;
-
     const formatted = await prettier.format(elmCode, options);
-    console.log("Formatted code:", formatted);
-
-    // The order should now be sorted according to Tailwind's conventions
-    expect(formatted).toContain('class "flex p-4 bg-blue-500 text-lg"');
+    // The official plugin puts display utilities first, then colors, then spacing, then typography
+    expect(formatted).toContain('class "flex bg-blue-500 p-4 text-lg"');
   });
 
-  test("it sorts classList entries", async () => {
+  test("sorts classList entries", async () => {
     const elmCode = `
 module Main exposing (..)
 
 view : Html msg
 view =
-    div [ classList [ ( "text-lg flex p-4 bg-blue-500", True ), ( "hidden", isHidden ) ] ] [ text "Hello World" ]
+    div [ classList [ ( "p-4 bg-blue-500 text-lg flex", True ), ( "hidden", isHidden ) ] ] [ text "Hello World" ]
 `;
-
     const formatted = await prettier.format(elmCode, options);
-    console.log("Formatted code:", formatted);
-
-    // The order should now be sorted according to Tailwind's conventions
-    expect(formatted).toContain('( "flex p-4 bg-blue-500 text-lg", True');
+    expect(formatted).toContain('( "flex bg-blue-500 p-4 text-lg", True )');
   });
 
-  test("it sorts concatenated class strings", async () => {
+  test("sorts concatenated class strings", async () => {
     const elmCode = `
 module Main exposing (..)
 
 view : Html msg
 view =
-    div [ class "base-styles " ++ " text-lg flex p-4 bg-blue-500" ] [ text "Hello World" ]
+    div [ class "base-styles " ++ "p-4 bg-blue-500 text-lg flex" ] [ text "Hello World" ]
 `;
-
     const formatted = await prettier.format(elmCode, options);
-    console.log("Formatted code:", formatted);
+    expect(formatted).toContain(
+      'class "base-styles" ++ "flex bg-blue-500 p-4 text-lg"'
+    );
+  });
 
-    // The order should now be sorted according to Tailwind's conventions
-    expect(formatted).toContain('class "base-styles" ++ "flex p-4 bg-blue-500 text-lg"');
+  test("sorts responsive and variant classes", async () => {
+    const elmCode = `
+module Main exposing (..)
+
+view : Html msg
+view =
+    div [ class "md:grid sm:flex hover:bg-blue-500 focus:bg-green-500 dark:bg-gray-800" ] [ text "Hello World" ]
+`;
+    const formatted = await prettier.format(elmCode, options);
+    // Responsive prefixes first, then variants, then base utilities
+    expect(formatted).toContain(
+      'class "hover:bg-blue-500 focus:bg-green-500 sm:flex md:grid dark:bg-gray-800"'
+    );
+  });
+
+  test("handles arbitrary values correctly", async () => {
+    const elmCode = `
+module Main exposing (..)
+
+view : Html msg
+view =
+    div [ class "w-[200px] h-[100px] bg-[#123456] text-[16px]" ] [ text "Hello World" ]
+`;
+    const formatted = await prettier.format(elmCode, options);
+    // Arbitrary values should be sorted by their base utility
+    expect(formatted).toContain(
+      'class "h-[100px] w-[200px] bg-[#123456] text-[16px]"'
+    );
+  });
+
+  test("sorts negative spacing and positional classes", async () => {
+    const elmCode = `
+module Main exposing (..)
+
+view : Html msg
+view =
+    div [ class "-m-4 -p-2 top-4 right-2" ] [ text "Hello World" ]
+`;
+    const formatted = await prettier.format(elmCode, options);
+    // Positioning before negative spacing
+    expect(formatted).toContain('class "-p-2 right-2 top-4 -m-4"');
+  });
+
+  test("respects class dependencies", async () => {
+    const elmCode = `
+module Main exposing (..)
+
+view : Html msg
+view =
+    div [ class "flex-col flex flex-wrap justify-center items-center" ] [ text "Hello World" ]
+`;
+    const formatted = await prettier.format(elmCode, options);
+    // Base display utility first, then modifiers
+    expect(formatted).toContain(
+      'class "flex flex-col flex-wrap items-center justify-center"'
+    );
+  });
+
+  test("handles complex variant scenarios", async () => {
+    const elmCode = `
+module Main exposing (..)
+
+view : Html msg
+view =
+    div [ class "dark:hover:bg-blue-500 focus:dark:bg-green-500 sm:hover:bg-gray-800" ] [ text "Hello World" ]
+`;
+    const formatted = await prettier.format(elmCode, options);
+    // Responsive first, then dark mode, then other variants
+    expect(formatted).toContain(
+      'class "sm:hover:bg-gray-800 dark:hover:bg-blue-500 focus:dark:bg-green-500"'
+    );
+  });
+
+  afterAll(() => {
+    fs.unlinkSync(tailwindConfigPath);
   });
 });
