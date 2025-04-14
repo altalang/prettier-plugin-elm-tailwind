@@ -35,7 +35,7 @@ function createPlugin() {
 
               const formatted = await prettier.format(html, {
                 parser: "html",
-                plugins: ["prettier-plugin-tailwindcss"],
+                plugins: [require.resolve("prettier-plugin-tailwindcss")],
                 tailwindConfig: tailwindOptions.tailwindConfig,
               });
 
@@ -61,7 +61,7 @@ function createPlugin() {
 
               const formatted = await prettier.format(html, {
                 parser: "html",
-                plugins: ["prettier-plugin-tailwindcss"],
+                plugins: [require.resolve("prettier-plugin-tailwindcss")],
                 tailwindConfig: tailwindOptions.tailwindConfig,
               });
 
@@ -92,12 +92,12 @@ function createPlugin() {
 
               const formattedFirst = await prettier.format(htmlFirst, {
                 parser: "html",
-                plugins: ["prettier-plugin-tailwindcss"],
+                plugins: [require.resolve("prettier-plugin-tailwindcss")],
                 tailwindConfig: tailwindOptions.tailwindConfig,
               });
               const formattedSecond = await prettier.format(htmlSecond, {
                 parser: "html",
-                plugins: ["prettier-plugin-tailwindcss"],
+                plugins: [require.resolve("prettier-plugin-tailwindcss")],
                 tailwindConfig: tailwindOptions.tailwindConfig,
               });
 
