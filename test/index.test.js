@@ -130,10 +130,92 @@ view =
     div [ class "dark:hover:bg-blue-500 focus:dark:bg-green-500 sm:hover:bg-gray-800" ] [ text "Hello World" ]
 `;
     const formatted = await prettier.format(elmCode, options);
-    // Responsive first, then dark mode, then other variants
+    // Responsive prefixes first, then variants, then base utilities
     expect(formatted).toContain(
       'class "sm:hover:bg-gray-800 dark:hover:bg-blue-500 focus:dark:bg-green-500"'
     );
+  });
+
+  test("preserves multi-line classList formatting", async () => {
+    const elmCode = `
+module Main exposing (..)
+
+view : Html msg
+view =
+    div
+        [ classList
+            [ ( "max-h-0 opacity-0 lg:hidden", not menuOpen )
+            , ( "max-h-screen opacity-100 lg:block", menuOpen )
+            ]
+        ]
+        [ text "Hello World" ]
+`;
+    const formatted = await prettier.format(elmCode, options);
+
+    // Verify the formatting is preserved while classes are sorted according to Tailwind's order
+    expect(formatted).toContain(`
+        [ classList
+            [ ( "max-h-0 opacity-0 lg:hidden", not menuOpen )`);
+    expect(formatted).toContain(`            , ( "max-h-screen opacity-100 lg:block", menuOpen )`);
+    expect(formatted).toContain(`            ]`);
+  });
+
+  test("preserves indentation in nested classList", async () => {
+    const elmCode = `
+module Main exposing (..)
+
+view : Html msg
+view =
+    div
+        [ classList
+            [ ( "max-h-0 opacity-0 lg:hidden"
+              , not menuOpen
+              )
+            , ( "max-h-screen opacity-100 lg:block"
+              , menuOpen
+              )
+            ]
+        ]
+        [ text "Hello World" ]
+`;
+    const formatted = await prettier.format(elmCode, options);
+
+    // Verify the formatting and indentation is preserved while classes are sorted according to Tailwind's order
+    expect(formatted).toContain(`        [ classList
+            [ ( "max-h-0 opacity-0 lg:hidden"
+              , not menuOpen
+              )`);
+    expect(formatted).toContain(`            , ( "max-h-screen opacity-100 lg:block"
+              , menuOpen
+              )`);
+    expect(formatted).toContain(`            ]`);
+  });
+
+  test("preserves formatting with multiple attributes", async () => {
+    const elmCode = `
+module Main exposing (..)
+
+view : Html msg
+view =
+    div
+        [ class "text-lg"
+        , classList
+            [ ( "max-h-0 opacity-0 lg:hidden", not menuOpen )
+            , ( "max-h-screen opacity-100 lg:block", menuOpen )
+            ]
+        , id "menu"
+        ]
+        [ text "Hello World" ]
+`;
+    const formatted = await prettier.format(elmCode, options);
+
+    // Verify the formatting is preserved while classes are sorted according to Tailwind's order
+    expect(formatted).toContain(`        [ class "text-lg"`);
+    expect(formatted).toContain(`        , classList
+            [ ( "max-h-0 opacity-0 lg:hidden", not menuOpen )`);
+    expect(formatted).toContain(`            , ( "max-h-screen opacity-100 lg:block", menuOpen )`);
+    expect(formatted).toContain(`            ]`);
+    expect(formatted).toContain(`        , id "menu"`);
   });
 
   afterAll(() => {

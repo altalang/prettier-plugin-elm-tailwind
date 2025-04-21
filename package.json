@@ -1,6 +1,6 @@
 {
     "name": "prettier-plugin-elm-tailwind",
-    "version": "0.2.0",
+    "version": "0.2.3",
     "description": "Prettier plugin for sorting Tailwind CSS classes in Elm files",
     "main": "index.js",
     "keywords": [
@@ -13,17 +13,15 @@
     "author": "Benjamin Torell",
     "license": "MIT",
     "peerDependencies": {
-        "prettier": "^2.0.0 || ^3.0.0",
-        "prettier-plugin-elm": "^0.9.0 || ^0.10.0 || ^0.11.0"
+        "prettier": "^3.0.0",
+        "prettier-plugin-elm": "^0.11.0"
     },
     "dependencies": {
-        "prettier-plugin-elm": "^0.9.0 || ^0.10.0 || ^0.11.0",
-        "prettier-plugin-tailwindcss": "^0.6.11"
+        "prettier-plugin-tailwindcss": "0.6.11"
     },
     "devDependencies": {
         "jest": "^29.0.0",
-        "prettier": "^3.0.0",
-        "prettier-plugin-tailwindcss": "^0.6.11"
+        "prettier": "^3.0.0"
     },
     "scripts": {
         "test": "node --experimental-vm-modules node_modules/.bin/jest"

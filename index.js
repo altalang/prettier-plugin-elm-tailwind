@@ -3,8 +3,57 @@ const prettier = require("prettier");
 
 function createPlugin() {
   let tailwindOptions = null;
+  let tailwindPlugin = null;
 
   return {
+    options: {
+      tailwindConfig: {
+        type: "string",
+        category: "Tailwind CSS",
+        description: "Path to Tailwind configuration file",
+      },
+      tailwindEntryPoint: {
+        type: "string",
+        category: "Tailwind CSS",
+        description:
+          "Path to the CSS entrypoint in your Tailwind project (v4+)",
+      },
+      tailwindStylesheet: {
+        type: "string",
+        category: "Tailwind CSS",
+        description:
+          "Path to the CSS stylesheet in your Tailwind project (v4+)",
+      },
+      tailwindAttributes: {
+        type: "string",
+        array: true,
+        default: [{ value: [] }],
+        category: "Tailwind CSS",
+        description:
+          "List of attributes/props that contain sortable Tailwind classes",
+      },
+      tailwindFunctions: {
+        type: "string",
+        array: true,
+        default: [{ value: [] }],
+        category: "Tailwind CSS",
+        description:
+          "List of functions and tagged templates that contain sortable Tailwind classes",
+      },
+      tailwindPreserveWhitespace: {
+        type: "boolean",
+        default: false,
+        category: "Tailwind CSS",
+        description: "Preserve whitespace around Tailwind classes when sorting",
+      },
+      tailwindPreserveDuplicates: {
+        type: "boolean",
+        default: false,
+        category: "Tailwind CSS",
+        description:
+          "Preserve duplicate classes inside a class list when sorting",
+      },
+    },
     parsers: {
       elm: {
         ...elmParsers.elm,
@@ -23,95 +72,62 @@ function createPlugin() {
           let result = node.body;
 
           if (typeof result === "string" && tailwindOptions) {
-            // Find all class attributes in Elm syntax
-            const classMatches = result.match(/class\s+\"([^\"]+)\"/g) || [];
-            for (const match of classMatches) {
-              const classGroup = match.match(/class\s+\"([^\"]+)\"/)[1];
-
-              // Create a minimal HTML file with the classes
-              const html = `
-                <div class="${classGroup.trim()}"></div>
-              `;
-
-              const formatted = await prettier.format(html, {
-                parser: "html",
-                plugins: [require.resolve("prettier-plugin-tailwindcss")],
-                tailwindConfig: tailwindOptions.tailwindConfig,
-              });
-
-              // Extract the sorted classes from the formatted HTML
-              const sortedClasses = formatted.match(/class="([^"]+)"/)[1];
-              result = result.replace(match, `class "${sortedClasses}"`);
+            // Lazy load the tailwind plugin using absolute path
+            if (!tailwindPlugin) {
+              const tailwindPluginPath = require.resolve(
+                "prettier-plugin-tailwindcss"
+              );
+              tailwindPlugin = await import(tailwindPluginPath);
             }
 
-            // Find all classList attributes in Elm syntax
-            const classListMatches =
-              result.match(
-                /classList\s*\[\s*\(\s*\"([^\"]+)\"\s*,\s*([^\)]+)\s*\)/g
-              ) || [];
-            for (const match of classListMatches) {
-              const [_, classGroup, condition] = match.match(
-                /classList\s*\[\s*\(\s*\"([^\"]+)\"\s*,\s*([^\)]+)\s*\)/
-              );
-
-              // Create a minimal HTML file with the classes
-              const html = `
-                <div class="${classGroup.trim()}"></div>
-              `;
-
+            // Helper function to format classes using Tailwind
+            async function formatClasses(classString) {
+              const html = `<div class="${classString.trim()}"></div>`;
               const formatted = await prettier.format(html, {
                 parser: "html",
-                plugins: [require.resolve("prettier-plugin-tailwindcss")],
-                tailwindConfig: tailwindOptions.tailwindConfig,
+                plugins: [tailwindPlugin],
+                tailwindConfig: tailwindOptions.tailwindConfig || "",
+                tailwindEntryPoint: tailwindOptions.tailwindEntryPoint,
+                tailwindStylesheet: tailwindOptions.tailwindStylesheet,
+                tailwindAttributes: tailwindOptions.tailwindAttributes,
+                tailwindFunctions: tailwindOptions.tailwindFunctions,
+                tailwindPreserveWhitespace:
+                  tailwindOptions.tailwindPreserveWhitespace,
+                tailwindPreserveDuplicates:
+                  tailwindOptions.tailwindPreserveDuplicates,
+                printWidth: 1000,
+                htmlWhitespaceSensitivity: "css",
               });
-
-              // Extract the sorted classes from the formatted HTML
-              const sortedClasses = formatted.match(/class="([^"]+)"/)[1];
-              result = result.replace(
-                match,
-                `classList [ ( "${sortedClasses}", ${condition.trim()} )`
-              );
+              return formatted.match(/class="([^"]+)"/)[1].trim();
             }
 
-            // Find all concatenated class attributes in Elm syntax
-            const concatMatches =
-              result.match(/class\s+\"([^\"]+)\"\s*\+{2}\s*\"([^\"]+)\"/g) ||
-              [];
-            for (const match of concatMatches) {
-              const [_, firstPart, secondPart] = match.match(
-                /class\s+\"([^\"]+)\"\s*\+{2}\s*\"([^\"]+)\"/
-              );
+            // Process class attributes
+            const classRegex = /(\s*)(class\s+\"([^\"]+)\")/g;
+            let match;
+            while ((match = classRegex.exec(result)) !== null) {
+              const [fullMatch, indent, classAttr, classGroup] = match;
+              const sortedClasses = await formatClasses(classGroup);
+              result = result.replace(fullMatch, `${indent}class "${sortedClasses}"`);
+            }
 
-              // Create minimal HTML files for each part
-              const htmlFirst = `
-                <div class="${firstPart.trim()}"></div>
-              `;
-              const htmlSecond = `
-                <div class="${secondPart.trim()}"></div>
-              `;
+            // Process classList attributes
+            const classListRegex = /(\s*)(classList[\s\S]*?\[\s*\(\s*)("([^"]+)")(\s*,\s*[^\)]+\s*\))/g;
+            while ((match = classListRegex.exec(result)) !== null) {
+              const [fullMatch, indent, before, quotedClassGroup, classGroup, after] = match;
+              const sortedClasses = await formatClasses(classGroup);
+              result = result.replace(fullMatch, `${indent}${before}"${sortedClasses}"${after}`);
+            }
 
-              const formattedFirst = await prettier.format(htmlFirst, {
-                parser: "html",
-                plugins: [require.resolve("prettier-plugin-tailwindcss")],
-                tailwindConfig: tailwindOptions.tailwindConfig,
-              });
-              const formattedSecond = await prettier.format(htmlSecond, {
-                parser: "html",
-                plugins: [require.resolve("prettier-plugin-tailwindcss")],
-                tailwindConfig: tailwindOptions.tailwindConfig,
-              });
-
-              // Extract the sorted classes from the formatted HTML
-              const sortedFirstPart =
-                formattedFirst.match(/class="([^"]+)"/)[1];
-              const sortedSecondPart =
-                formattedSecond.match(/class="([^"]+)"/)[1];
-              result = result.replace(
-                match,
-                `class "${sortedFirstPart}" ++ "${sortedSecondPart}"`
-              );
+            // Process concatenated class strings
+            const concatRegex = /(\s*)(class\s+\"([^\"]+)\"\s*\+{2}\s*\"([^\"]+)\")/g;
+            while ((match = concatRegex.exec(result)) !== null) {
+              const [fullMatch, indent, _, firstPart, secondPart] = match;
+              const sortedFirst = await formatClasses(firstPart);
+              const sortedSecond = await formatClasses(secondPart);
+              result = result.replace(fullMatch, `${indent}class "${sortedFirst}" ++ "${sortedSecond}"`);
             }
           }
+
           return result;
         },
       },
