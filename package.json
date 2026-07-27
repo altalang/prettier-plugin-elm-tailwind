@@ -25,6 +25,9 @@
         "prettier": "^3.0.0",
         "jest": "^29.0.0"
     },
+    "overrides": {
+        "js-yaml": "3.15.0"
+    },
     "scripts": {
         "test": "node --experimental-vm-modules node_modules/.bin/jest"
     },
